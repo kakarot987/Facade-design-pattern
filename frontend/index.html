@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Facade Pattern — Home Automation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #080c10;
+      --surface:   #0d1117;
+      --card:      #111820;
+      --border:    #1c2636;
+      --border-hi: #263347;
+      --accent:    #00d4ff;
+      --accent-dim:#004d5e;
+      --text:      #ccd6e0;
+      --muted:     #4a6070;
+      --green:     #00e676;
+      --amber:     #ffab40;
+      --red:       #ff5252;
+      --font-display: 'Syne', sans-serif;
+      --font-mono:    'IBM Plex Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      min-height: 100vh;
+      padding: 36px 16px 80px;
+    }
+
+    /* subtle grid bg */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    .wrap { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; }
+
+    /* ── Header ─────────────────────────────── */
+    header {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 18px; margin-bottom: 40px;
+    }
+    .logo { font-family: var(--font-display); }
+    .logo h1 { font-size: clamp(1.5rem, 4vw, 2.2rem); font-weight: 800; color: var(--accent); letter-spacing: -0.03em; line-height: 1; }
+    .logo p  { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 5px; }
+    .status-pill {
+      font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase;
+      border: 1px solid var(--border); color: var(--muted);
+      padding: 4px 10px; border-radius: 2px;
+    }
+
+    /* ── Two-column grid ─────────────────────── */
+    .layout { display: grid; grid-template-columns: 340px 1fr; gap: 16px; }
+    @media (max-width: 700px) { .layout { grid-template-columns: 1fr; } }
+
+    /* ── Card ───────────────────────────────── */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 6px; padding: 22px;
+    }
+    .card-label {
+      font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 16px;
+    }
+
+    /* ── Scene Buttons ──────────────────────── */
+    .scene-list { display: flex; flex-direction: column; gap: 8px; }
+    .scene-btn {
+      width: 100%;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 4px; padding: 14px 16px;
+      cursor: pointer; transition: border-color 0.15s, background 0.15s;
+      text-align: left; font-family: var(--font-mono);
+      display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: center;
+    }
+    .scene-btn:hover  { border-color: var(--border-hi); background: rgba(0,212,255,0.04); }
+    .scene-btn.active { border-color: var(--accent); background: rgba(0,212,255,0.07); }
+    .scene-btn.loading{ opacity: 0.6; cursor: wait; }
+
+    .scene-icon  { font-size: 1.2rem; line-height: 1; }
+    .scene-name  { font-size: 0.82rem; font-weight: 500; color: var(--text); display: block; }
+    .scene-desc  { font-size: 0.67rem; color: var(--muted); display: block; margin-top: 2px; }
+    .scene-btn.active .scene-name { color: var(--accent); }
+
+    /* ── Result Panel ───────────────────────── */
+    .result-panel { display: flex; flex-direction: column; gap: 14px; }
+
+    /* summary bar */
+    .summary-bar {
+      background: var(--surface); border: 1px solid var(--accent-dim);
+      border-radius: 4px; padding: 14px 18px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .summary-scene { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+    .summary-msg   { font-size: 0.72rem; color: var(--muted); margin-top: 3px; }
+    .summary-count { font-size: 0.68rem; color: var(--accent); border: 1px solid var(--accent-dim); padding: 3px 9px; border-radius: 2px; white-space: nowrap; }
+
+    /* subsystem groups */
+    .subsystem-group { margin-bottom: 2px; }
+    .subsystem-header {
+      font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--muted); padding: 6px 0 4px;
+      border-bottom: 1px solid var(--border); margin-bottom: 4px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .subsystem-header::before {
+      content: ''; display: inline-block; width: 6px; height: 6px;
+      border-radius: 50%; background: var(--accent-dim); flex-shrink: 0;
+    }
+
+    .action-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 8px; border-radius: 3px;
+      font-size: 0.73rem; color: var(--text);
+      animation: slideIn 0.18s ease both;
+    }
+    .action-row:hover { background: rgba(0,212,255,0.03); }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-6px); }
+      to   { opacity: 1; transform: none; }
+    }
+    .action-icon { font-size: 0.95rem; width: 20px; text-align: center; }
+
+    /* empty state */
+    .empty-state {
+      border: 1px dashed var(--border); border-radius: 4px;
+      padding: 40px 20px; text-align: center;
+      color: var(--muted); font-size: 0.75rem; letter-spacing: 0.06em;
+    }
+    .empty-state .big { font-size: 2rem; display: block; margin-bottom: 10px; opacity: 0.4; }
+
+    /* ── Pattern diagram ─────────────────────── */
+    .diagram-card { grid-column: 1 / -1; }
+    .diagram {
+      font-size: 0.7rem; line-height: 2;
+      display: grid; grid-template-columns: 1fr auto 1fr;
+      gap: 0 20px; align-items: center;
+    }
+    .diagram-col { display: flex; flex-direction: column; gap: 4px; }
+    .diagram-box {
+      border: 1px solid var(--border); border-radius: 3px;
+      padding: 7px 12px; font-size: 0.68rem;
+    }
+    .diagram-box.client   { border-color: var(--amber); color: var(--amber); }
+    .diagram-box.facade-b { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.05); font-weight: 500; text-align: center; align-self: center; }
+    .diagram-box.sub      { border-color: var(--muted); color: var(--muted); font-size: 0.64rem; }
+    .diagram-box.sub span { display: block; font-size: 0.6rem; color: var(--border-hi); }
+    .diagram-arrow { text-align: center; color: var(--accent); font-size: 0.75rem; }
+
+    /* ── Toast ───────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: #1a0a0a; border: 1px solid var(--red); color: var(--red);
+      font-family: var(--font-mono); font-size: 0.72rem;
+      padding: 10px 16px; border-radius: 4px;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .toast.show { opacity: 1; }
+
+    /* spinner */
+    .spin { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--border-hi); border-top-color: var(--accent); border-radius: 50%; animation: rot 0.6s linear infinite; }
+    @keyframes rot { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">
+      <h1>HomeOS</h1>
+      <p>Facade Design Pattern · Spring Boot</p>
+    </div>
+    <span class="status-pill" id="statusPill">● idle</span>
+  </header>
+
+  <div class="layout">
+
+    <!-- Scene Selector -->
+    <div class="card">
+      <div class="card-label">Activate Scene</div>
+      <div class="scene-list" id="sceneList">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <!-- Result Panel -->
+    <div class="result-panel" id="resultPanel">
+      <div class="empty-state">
+        <span class="big">🏠</span>
+        Select a scene — the Facade will<br/>orchestrate all subsystems for you.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Pattern Diagram -->
+  <div style="margin-top:16px;" class="card diagram-card">
+    <div class="card-label">Pattern Structure</div>
+    <div class="diagram">
+      <div class="diagram-col">
+        <div class="diagram-box client">HomeController<span style="font-size:0.6rem;color:var(--muted);display:block">«client»  calls one method</span></div>
+      </div>
+      <div class="diagram-arrow">
+        ──→<br/>
+        <div class="diagram-box facade-b">HomeAutomationFacade<br/><span style="font-size:0.62rem;opacity:0.7">activateMovieMode()<br/>activateMorningMode()<br/>activateLeaveMode() …</span></div>
+        <br/>──→
+      </div>
+      <div class="diagram-col">
+        <div class="diagram-box sub">LightingSystem<span>setBrightness() · setScene() · turnOff() …</span></div>
+        <div class="diagram-box sub">SecuritySystem<span>arm() · lockAllDoors() · enableCameras() …</span></div>
+        <div class="diagram-box sub">ClimateSystem<span>setTemperature() · setFanSpeed() …</span></div>
+        <div class="diagram-box sub">EntertainmentSystem<span>turnOnTV() · closeBlinds() · setVolume() …</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API = 'http://localhost:8080/api/home';
+
+  const scenes = [
+    { id: 'movie',   label: 'Movie Night',  icon: '🎬', desc: 'Dim lights, close blinds, surround sound' },
+    { id: 'morning', label: 'Good Morning', icon: '☀️',  desc: 'Bright lights, open blinds, jazz music'  },
+    { id: 'leave',   label: 'Leaving Home', icon: '🚗', desc: 'Everything off, doors locked, alarm on'   },
+    { id: 'sleep',   label: 'Good Night',   icon: '🌙', desc: 'Lights off, night climate, alarm armed'   },
+    { id: 'party',   label: 'Party Mode',   icon: '🎉', desc: 'Colour lights, music loud, door unlocked' },
+  ];
+
+  let activeScene = null;
+
+  // Render scene buttons
+  const list = document.getElementById('sceneList');
+  scenes.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'scene-btn';
+    btn.id = 'btn-' + s.id;
+    btn.innerHTML = `
+      <span class="scene-icon">${s.icon}</span>
+      <span>
+        <span class="scene-name">${s.label}</span>
+        <span class="scene-desc">${s.desc}</span>
+      </span>`;
+    btn.onclick = () => activateScene(s.id);
+    list.appendChild(btn);
+  });
+
+  async function activateScene(sceneId) {
+    // UI state
+    document.querySelectorAll('.scene-btn').forEach(b => {
+      b.classList.remove('active');
+      b.disabled = true;
+      b.classList.add('loading');
+    });
+    const activeBtn = document.getElementById('btn-' + sceneId);
+    setStatus('activating…', 'amber');
+    setResultLoading();
+
+    try {
+      const res = await fetch(`${API}/scene/${sceneId}`, { method: 'POST' });
+      if (!res.ok) throw new Error('API error ' + res.status);
+      const data = await res.json();
+      activeScene = sceneId;
+      activeBtn.classList.add('active');
+      setStatus('● active', 'green');
+      renderResult(data);
+    } catch (e) {
+      setStatus('● error', 'red');
+      showToast('Cannot reach API — is Spring Boot running on :8080?');
+      resetResult();
+    } finally {
+      document.querySelectorAll('.scene-btn').forEach(b => {
+        b.disabled = false;
+        b.classList.remove('loading');
+      });
+    }
+  }
+
+  function renderResult(data) {
+    // Group actions by subsystem
+    const groups = {};
+    data.actions.forEach(a => {
+      if (!groups[a.subsystem]) groups[a.subsystem] = [];
+      groups[a.subsystem].push(a);
+    });
+
+    const summaryHtml = `
+      <div class="summary-bar">
+        <div>
+          <div class="summary-scene">${data.scene}</div>
+          <div class="summary-msg">${data.summary}</div>
+        </div>
+        <div class="summary-count">${data.actions.length} actions</div>
+      </div>`;
+
+    const subsystemHtml = Object.entries(groups).map(([sys, actions], gi) => {
+      const rows = actions.map((a, i) => `
+        <div class="action-row" style="animation-delay:${(gi * 10 + i) * 40}ms">
+          <span class="action-icon">${a.icon}</span>
+          <span>${a.action}</span>
+        </div>`).join('');
+      return `
+        <div class="subsystem-group">
+          <div class="subsystem-header">${sys}</div>
+          ${rows}
+        </div>`;
+    }).join('');
+
+    document.getElementById('resultPanel').innerHTML =
+      summaryHtml +
+      `<div class="card" style="padding:16px 18px">${subsystemHtml}</div>`;
+  }
+
+  function setResultLoading() {
+    document.getElementById('resultPanel').innerHTML = `
+      <div class="empty-state">
+        <span class="spin" style="display:inline-block;width:20px;height:20px;margin-bottom:12px"></span><br/>
+        Facade orchestrating subsystems…
+      </div>`;
+  }
+
+  function resetResult() {
+    document.getElementById('resultPanel').innerHTML = `
+      <div class="empty-state">
+        <span class="big">🏠</span>
+        Select a scene — the Facade will<br/>orchestrate all subsystems for you.
+      </div>`;
+  }
+
+  function setStatus(text, color) {
+    const pill = document.getElementById('statusPill');
+    pill.textContent = text;
+    pill.style.color = color === 'green' ? 'var(--green)'
+                     : color === 'amber' ? 'var(--amber)'
+                     : color === 'red'   ? 'var(--red)'
+                     : 'var(--muted)';
+    pill.style.borderColor = 'currentColor';
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+</script>
+</body>
+</html>
