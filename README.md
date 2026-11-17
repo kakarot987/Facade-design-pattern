@@ -87,8 +87,7 @@ Returns all available scenes with metadata.
 
 ### Backend
 ```bash
-cd facade-demo
-./mvnw spring-boot:run
+mvn spring-boot:run
 # Runs at http://localhost:8080
 ```
 
@@ -127,3 +126,16 @@ facade.activateMovieMode();
 *GoF Facade Pattern · Backend Demo · Java 17 · Spring Boot 3*
 
 ![img.png](img.png)
+
+## Testing and simulation boundaries
+
+Run `mvn test` from the repository root. The tests verify the ordered
+subsystem calls for scenes and simulate a subsystem error. The facade currently
+propagates a subsystem exception immediately, leaving preceding actions
+uncompensated; this is an intentional failure-mode discussion point.
+
+**Important:** All subsystem operations return *descriptions* of simulated
+work. They do **not** operate real locks, cameras, alarms or appliances, and
+there is no authentication or authorization appropriate for real home security.
+For a production orchestration service, consider authorization, idempotency,
+partial-failure handling and compensating actions.
