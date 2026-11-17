@@ -33,7 +33,7 @@ public class HomeController {
 
     @PostMapping("/scene/{name}")
     public ResponseEntity<FacadeResponse> activateScene(@PathVariable String name) {
-        FacadeResponse response = switch (name.toLowerCase()) {
+        FacadeResponse response = switch (name.trim().toLowerCase(java.util.Locale.ROOT)) {
             case "movie"   -> facade.activateMovieMode();
             case "morning" -> facade.activateMorningMode();
             case "leave"   -> facade.activateLeaveMode();
